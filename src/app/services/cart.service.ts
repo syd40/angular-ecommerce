@@ -25,8 +25,8 @@ export class CartService {
       //     break;
       //   }
       // }
-
-      existingCartItem = this.cartItems.find((tempCartItem) => { tempCartItem.id === theCartItem.id })!;
+      // existingCartItem = this.cartItems.find( tempCartItem => tempCartItem.id === theCartItem.id )!;
+      existingCartItem = this.cartItems.find((tempCartItem) => { return tempCartItem.id === theCartItem.id })!;
 
     }
 
