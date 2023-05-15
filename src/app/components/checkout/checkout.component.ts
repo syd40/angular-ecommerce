@@ -1,9 +1,15 @@
 import { Target } from '@angular/compiler';
 import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
 import { Country } from 'src/app/common/country';
+import { Customer } from 'src/app/common/customer';
+import { Order } from 'src/app/common/order';
+import { OrderItem } from 'src/app/common/order-item';
+import { Purchase } from 'src/app/common/purchase';
 import { State } from 'src/app/common/state';
 import { CartService } from 'src/app/services/cart.service';
+import { CheckoutService } from 'src/app/services/checkout.service';
 import { FormService } from 'src/app/services/form.service';
 import { CustomValidators } from 'src/app/validators/custom-validators';
 
@@ -27,7 +33,11 @@ export class CheckoutComponent implements OnInit {
   shippingAddressStates: State[] = [];
   billingAddressStates: State[] = [];
   
-  constructor(private formBuilder: FormBuilder, private formService: FormService, private cartService: CartService) { }
+  constructor(private formBuilder: FormBuilder,
+              private formService: FormService,
+              private cartService: CartService,
+              private checkoutService: CheckoutService,
+              private router: Router) { }
 
   ngOnInit(): void {
 
@@ -141,11 +151,68 @@ export class CheckoutComponent implements OnInit {
 
     if(this.checkoutFormGroup.invalid){
       this.checkoutFormGroup.markAllAsTouched();
+      return;
     }
 
-    console.log(this.checkoutFormGroup.get('customer')?.value);
-    console.log("The shipping address country is " +this.checkoutFormGroup.get('shippingAddress')?.value.country.name);
-    console.log("The shipping address state is " +this.checkoutFormGroup.get('shippingAddress')?.value.state.name);
+    let order = new Order(this.totalPrice, this.totalQuantity);
+    const cartItems = this.cartService.cartItems;
+    let orderItems: OrderItem[] = cartItems.map(tempCartItem => new OrderItem(tempCartItem));
+
+    // purchase fields
+
+    // fill purchase customer
+    let purchaseCustomer = this.checkoutFormGroup.controls['customer'].value;
+
+    // fill purchase shipping address
+    let purchaseShippingAddress = this.checkoutFormGroup.controls['shippingAddress'].value;
+    const shippingState: State = JSON.parse(JSON.stringify(purchaseShippingAddress.state));
+    const shippingCountry: Country = JSON.parse(JSON.stringify(purchaseShippingAddress.country));
+
+    purchaseShippingAddress.state = shippingState.name;
+    purchaseShippingAddress.country = shippingCountry.name;
+
+    // fill purchase billing address
+    let purchaseBillingAddress = this.checkoutFormGroup.controls['billingAddress'].value;
+    const billingState: State = JSON.parse(JSON.stringify(purchaseBillingAddress.state));
+    const billingCountry: Country = JSON.parse(JSON.stringify(purchaseBillingAddress.country));
+
+    purchaseBillingAddress.state = billingState.name;
+    purchaseBillingAddress.country = billingCountry.name;
+
+    // fill order and order items
+    let purchaseOrder =  order;
+    let purchaseOrderItems = orderItems; 
+
+    let purchase = new Purchase(purchaseCustomer,
+                                purchaseShippingAddress,
+                                purchaseBillingAddress,
+                                purchaseOrder,
+                                purchaseOrderItems);
+
+  // call checkout service
+
+  this.checkoutService.placeOrder(purchase).subscribe({
+      next: response =>{
+        alert(`Your order has been received.\n
+               Order tracking number ${response.orderTrackingNumber}`)
+        // reset cart
+        this.resetCart();
+      },
+      error: err => {alert(`There was an error: ${err.message}`)}
+    });
+
+  }
+  resetCart() {
+    // reset cart data
+    this.cartService.cartItems = [];
+    this.cartService.totalPrice.next(0);
+    this.cartService.totalQuantity.next(0);
+
+    // reset the form
+    this.checkoutFormGroup.reset();
+
+    // navigate back to the products page
+    this.router.navigateByUrl("/products");
   }
 
   handleMonthsAndYears() {
